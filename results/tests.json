@@ -158,7 +158,7 @@
   {
    "id": "TC-EQV-001",
    "req": "REQ-CTRL-AA-004",
-   "desc": "equivalencia modelo float64 x codigo float32 (SIL, 1000 amostras)",
+   "desc": "equivalencia modelo float64 x codigo C float32 (SIL, 1000 amostras)",
    "passed": true,
    "detail": {
     "n_samples": 1000,
@@ -167,8 +167,13 @@
     "eps_float32": 1.1920928955078125e-07,
     "err_over_eps_umax": 183.81834772902602,
     "err_rel": 2.1912854639175655e-05,
-    "c_executed": false,
-    "supervisor_state_mismatch": 0
+    "c_executed": true,
+    "supervisor_state_mismatch": 0,
+    "c_vs_mirror_max_abs": 0.0,
+    "c_vs_model_max_abs": 0.0003409892720698249,
+    "c_vs_mirror_n_diff": 0,
+    "c_state_mismatch_vs_mirror": 0,
+    "c_bitexact_frac": 1.0
    }
   }
  ],

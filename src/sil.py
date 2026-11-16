@@ -51,7 +51,8 @@ def run_c(inputs):
                     os.path.join(GEN, 'aurora_joint_ctrl.c')], check=True)
     txt = '\n'.join(' '.join(f'{v:.17g}' if k < 4 else str(int(v)) for k, v in enumerate(a)) for a in inputs)
     res = subprocess.run([exe], input=txt, capture_output=True, text=True, check=True).stdout.split('\n')
-    return np.array([float(l.split()[0]) for l in res if l.strip()])
+    rows = [l.split() for l in res if l.strip()]
+    return np.array([float(np.float32(r[0])) for r in rows]), np.array([int(r[1]) for r in rows]), np.array([int(r[2]) for r in rows])
 
 
 def equivalence():
@@ -59,7 +60,7 @@ def equivalence():
     ref = stimulus(); inputs = ref['inp']
     golden = Ctrl(); u64 = np.array([golden.step(*a) for a in inputs])      # modelo de referencia (float64)
     u32, sup32 = mirror_f32(inputs)
-    uc = run_c(inputs)
+    cres = run_c(inputs); uc = cres[0] if cres else None
     err = np.abs(u32.astype(np.float64) - u64)
     scale = float(np.max(np.abs(u64)))
     res = dict(n_samples=len(inputs), max_abs_err_V=float(err.max()), max_abs_u=scale,
@@ -69,6 +70,9 @@ def equivalence():
     if uc is not None:
         res['c_vs_mirror_max_abs'] = float(np.max(np.abs(uc - u32)))
         res['c_vs_model_max_abs'] = float(np.max(np.abs(uc - u64)))
+        res['c_vs_mirror_n_diff'] = int(np.sum(uc != u32.astype(np.float64)))
+        res['c_state_mismatch_vs_mirror'] = int(np.sum(cres[1] != sup32))
+        res['c_bitexact_frac'] = float(np.mean(uc == u32.astype(np.float64)))
     return res
 
 

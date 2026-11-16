@@ -16,5 +16,5 @@ Pacote de evidências model-based: planta → controlador → verificação form
 | `docs/` | matriz de rastreabilidade, relatório técnico (HTML e PDF) |
 | `results/` | `memorial.json`, `tests.json`, `coverage_report.md` (cobertura de estados/transições) |
 
-Reproduzir: `python run_all.py` (requer apenas numpy e matplotlib). Para fechar o SIL com o C real:
+Reproduzir: `python run_all.py` (requer apenas numpy e matplotlib). SIL com o C real (já executado com gcc 16.2.0, 1000/1000 amostras idênticas ao espelho):
 `gcc -O0 -ffp-contract=off -o sil generated/sil_main.c generated/aurora_joint_ctrl.c` (ou apenas instalar gcc e rodar `python src/sil.py`).

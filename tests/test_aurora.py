@@ -168,7 +168,9 @@ def test_mbt():
 def test_equivalence():
     r = sil.equivalence()
     ok = r['max_abs_err_V'] < 1e-3 and r['err_over_eps_umax'] < 1e3 and r['supervisor_state_mismatch'] == 0
-    record('TC-EQV-001', 'REQ-CTRL-AA-004', 'equivalencia modelo float64 x codigo float32 (SIL, 1000 amostras)', ok, r)
+    if r['c_executed']:   # com compilador: o C real deve ser identico bit a bit ao espelho float32
+        ok = ok and r['c_bitexact_frac'] == 1.0 and r['c_state_mismatch_vs_mirror'] == 0
+    record('TC-EQV-001', 'REQ-CTRL-AA-004', 'equivalencia modelo float64 x codigo C float32 (SIL, 1000 amostras)', ok, r)
 
 
 def write_reports(paths):

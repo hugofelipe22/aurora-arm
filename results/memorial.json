@@ -237,8 +237,13 @@
   "eps_float32": 1.1920928955078125e-07,
   "err_over_eps_umax": 183.81834772902602,
   "err_rel": 2.1912854639175655e-05,
-  "c_executed": false,
+  "c_executed": true,
   "supervisor_state_mismatch": 0,
+  "c_vs_mirror_max_abs": 0.0,
+  "c_vs_model_max_abs": 0.0003409892720698249,
+  "c_vs_mirror_n_diff": 0,
+  "c_state_mismatch_vs_mirror": 0,
+  "c_bitexact_frac": 1.0,
   "sum_abs_terms_max": 1088.346857452881,
   "err_over_eps_terms": 2.6282295170985495
  }
