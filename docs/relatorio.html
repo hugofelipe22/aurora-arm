@@ -17,7 +17,7 @@ img { max-width: 100%; display: block; margin: 6px auto; } figcaption { text-ali
 
 <h1>Operação Linha Viva: o desafio do braço colaborativo AuroraArm</h1>
 <div class="sub">Pacote de evidências model-based para a junta do cotovelo — modelo, controle, verificação formal, código gerado e rastreabilidade.<br>
-Disciplina: Model Based Design for Cyber-Physical Systems · Repositório: <b>[inserir link do repositório Git]</b></div>
+Disciplina: Model Based Design for Cyber-Physical Systems · Repositório: <b><a href="https://github.com/hugofelipe22/aurora-arm">https://github.com/hugofelipe22/aurora-arm</a></b></div>
 
 <h2>1. Resumo executivo</h2>
 <p>Para a junta do cotovelo (motor CC 48 V, redução 100:1) foram entregues: (i) o modelo em espaço de estados derivado das leis de Kirchhoff e Newton (<code>src/plant.py</code>); (ii) um controlador de realimentação de estados com ação integral, limitador preditivo de tensão/corrente e anti-windup (<code>src/design.py</code>, <code>src/controller.py</code>); (iii) um supervisor de segurança formalizado como autômato e verificado exaustivamente por um model checker de estados explícitos temporizado (<code>src/supervisor.py</code>, <code>src/modelcheck.py</code>); e (iv) código C em ponto flutuante simples gerado automaticamente (<code>generated/aurora_joint_ctrl.c</code>), com suíte de 16 testes, equivalência numérica e matriz de rastreabilidade (<code>docs/traceability.md</code>).</p>
@@ -112,7 +112,7 @@ Disciplina: Model Based Design for Cyber-Physical Systems · Repositório: <b>[i
 </ol>
 
 <h2>5. Repositório</h2>
-<p>Repositório Git: <b>[inserir link]</b>. Reprodução: <code>python run_all.py</code> (numpy e matplotlib).</p>
+<p>Repositório Git: <b><a href="https://github.com/hugofelipe22/aurora-arm">https://github.com/hugofelipe22/aurora-arm</a></b>. Reprodução: <code>python run_all.py</code> (numpy e matplotlib).</p>
 
 <h2 class="pb">6. Anexo — Memorial de cálculo</h2>
 <p class="sub">Todos os números abaixo são reproduzidos por <code>python src/memorial.py</code> (saída em <code>results/memorial.json</code>).</p>
