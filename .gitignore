@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 *.exe
 nohup.out
+video/_tmp/
+video/*.avi
