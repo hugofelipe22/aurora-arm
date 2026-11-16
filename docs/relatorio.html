@@ -17,7 +17,7 @@ img { max-width: 100%; display: block; margin: 6px auto; } figcaption { text-ali
 
 <h1>Operação Linha Viva: o desafio do braço colaborativo AuroraArm</h1>
 <div class="sub">Pacote de evidências model-based para a junta do cotovelo — modelo, controle, verificação formal, código gerado e rastreabilidade.<br>
-Disciplina: Model Based Design for Cyber-Physical Systems · Repositório: <b>[inserir link do repositório Git]</b> · Vídeo: <b>[inserir link do vídeo]</b></div>
+Disciplina: Model Based Design for Cyber-Physical Systems · Repositório: <b>[inserir link do repositório Git]</b></div>
 
 <h2>1. Resumo executivo</h2>
 <p>Para a junta do cotovelo (motor CC 48 V, redução 100:1) foram entregues: (i) o modelo em espaço de estados derivado das leis de Kirchhoff e Newton (<code>src/plant.py</code>); (ii) um controlador de realimentação de estados com ação integral, limitador preditivo de tensão/corrente e anti-windup (<code>src/design.py</code>, <code>src/controller.py</code>); (iii) um supervisor de segurança formalizado como autômato e verificado exaustivamente por um model checker de estados explícitos temporizado (<code>src/supervisor.py</code>, <code>src/modelcheck.py</code>); e (iv) código C em ponto flutuante simples gerado automaticamente (<code>generated/aurora_joint_ctrl.c</code>), com suíte de 16 testes, equivalência numérica e matriz de rastreabilidade (<code>docs/traceability.md</code>).</p>
@@ -95,19 +95,24 @@ Disciplina: Model Based Design for Cyber-Physical Systems · Repositório: <b>[i
 <tr><td>REQ-SAFE-AA-004</td><td><code>params.py</code> W_COLLAB; limitador de ω</td><td><code>AA_W_COLLAB</code></td><td>TC-SAFE-004</td></tr></table>
 <p>Resultado da suíte: <b>16 de 16 testes aprovados</b> (<code>results/tests.json</code>). Versão completa e gerada automaticamente em <code>docs/traceability.md</code>.</p>
 
-<h2>4. Casos reais e referências</h2>
-<div class="box"><b>Pendente (ação do(a) estudante).</b> A fonte 7 do enunciado exige um relato técnico público e identificável de integração de robô colaborativo real (por exemplo, Universal Robots, ABB ou KUKA), com referência ABNT completa. Não inseri uma citação que não pude verificar. Sugestão: escolher um estudo de caso publicado e relacionar o que ele relata sobre zonas de velocidade/separação com os resultados da seção 3.3 (rampa/limitação a 250 mm/s) e com a parada de segurança.</div>
+<h3>3.5 Comparação com o caso real (Marvel e Norcross, 2017)</h3>
+<p>A distância mínima de separação do SSM é a soma de quatro parcelas: deslocamento do humano durante T<sub>R</sub> + T<sub>S</sub>, deslocamento do robô durante T<sub>R</sub>, distância de frenagem e margem de intrusão/incertezas C. Com os resultados deste pacote (estimativa, zona colaborativa, v<sub>humano</sub> = 1,6 m/s adotado como premissa): T<sub>R</sub> = 25,5 ms (TC-SAFE-001) e T<sub>S</sub> = ω/α = 69/607 = 0,114 s. Humano: 1600 × (0,0255 + 0,114) = 223 mm; robô na resposta: 241,6 × 0,0255 = 6,2 mm; frenagem: 13,8 mm. Soma = <b>243 mm + C</b>, contra os 500 mm de detecção do REQ-SAFE-AA-001: sobram ≈ 257 mm para C e incertezas. O T<sub>R</sub> medido no caso real (113 ms) é 4,4× maior que o nosso e já estouraria o prazo de 100 ms, o que mostra que o prazo só é cumprido porque o supervisor corre no próprio laço de 2 ms, e não em um controlador externo em rede. Limitações: a frenagem aqui é por carga e atrito (sem freio) e supõe a carga se opondo ao movimento.</p>
+
+<h2>4. Caso real e referências</h2>
+<p><b>Caso real selecionado (fonte 7).</b> Marvel e Norcross (2017) relatam a implementação de <i>speed and separation monitoring</i> (ISO/TS 15066) em uma célula colaborativa do NIST: manipulador de 6 graus de liberdade em célula protegida, com alvo humano simulado. Medições reportadas: tempo de resposta do sistema T<sub>R</sub> = 0,113 s (margem de +0,019 s para 0,999 de confiança) e atraso de ≈ 220 ms entre a posição real do robô e a posição reportada. <b>Ressalva:</b> é uma bancada de pesquisa, não uma linha de produção de fabricante; foi o relato técnico público que consegui verificar. A matéria da ISA sobre a Scott Fetzer com UR5/UR10 (FRANKLIN, 2017) foi descartada por ter só uma legenda sobre o caso, sem dados de segurança. O(a) estudante pode substituir por um relato de fabricante (UR, ABB, KUKA) com a mesma comparação.</p>
 <ol>
 <li>INTERNATIONAL ORGANIZATION FOR STANDARDIZATION. <i>ISO/TS 15066: Robots and robotic devices — Collaborative robots</i>. Geneva: ISO, 2016.</li>
 <li>SICILIANO, B.; SCIAVICCO, L.; VILLANI, L.; ORIOLO, G. <i>Robotics: Modelling, Planning and Control</i>. London: Springer-Verlag, 2010.</li>
 <li>INTERNATIONAL ELECTROTECHNICAL COMMISSION. <i>IEC 61508: Functional safety of electrical/electronic/programmable electronic safety-related systems</i>. Parts 1-7. Geneva: IEC, 2010.</li>
 <li>BAIER, C.; KATOEN, J.-P. <i>Principles of Model Checking</i>. Cambridge: MIT Press, 2008.</li>
+<li>MARVEL, J. A.; NORCROSS, R. Implementing speed and separation monitoring in collaborative robot workcells. <i>Robotics and Computer-Integrated Manufacturing</i>, v. 44, p. 144-155, abr. 2017. DOI: 10.1016/j.rcim.2016.08.001. Disponível em: https://pmc.ncbi.nlm.nih.gov/articles/PMC5117641. Acesso em: 15 nov. 2026.</li>
 <li>MODELICA ASSOCIATION. <i>Functional Mock-up Interface Specification</i>, version 3.0, 2022 (não utilizada: a co-simulação foi feita em Python nativo, <code>src/sim.py</code>).</li>
+<li>FRANKLIN, C. Take a safe approach to collaborative robots. <i>InTech</i>, ISA, jul./ago. 2017. Disponível em: https://www.isa.org/intech-home/2017/july-august/features/take-a-safe-approach-to-collaborative-robots. Acesso em: 15 nov. 2026 (consultada; não utilizada como caso).</li>
 <li>Material das 16 aulas da disciplina (Unidades 1 a 4).</li>
 </ol>
 
-<h2>5. Vídeo e repositório</h2>
-<p>Repositório Git: <b>[inserir link]</b> · Vídeo (≤ 5 min, YouTube não listado): <b>[inserir link]</b>. Roteiro sugerido no arquivo <code>docs/roteiro_video.md</code>.</p>
+<h2>5. Repositório</h2>
+<p>Repositório Git: <b>[inserir link]</b>. Reprodução: <code>python run_all.py</code> (numpy e matplotlib).</p>
 
 <h2 class="pb">6. Anexo — Memorial de cálculo</h2>
 <p class="sub">Todos os números abaixo são reproduzidos por <code>python src/memorial.py</code> (saída em <code>results/memorial.json</code>).</p>
