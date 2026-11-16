@@ -1,4 +1,4 @@
-/* Harness SIL (gerado): le linhas "theta omega i r hand rearm collab", imprime "u sup tid" em hexfloat. */
+/* Harness SIL (gerado): le linhas "theta omega i r hand rearm collab", imprime "u sup tid" (u com 9 digitos significativos). */
 #include <stdio.h>
 #include "aurora_joint_ctrl.h"
 int main(void)

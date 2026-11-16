@@ -132,7 +132,7 @@ float aa_joint_step(aa_joint_t *c, float theta, float omega, float i_meas, float
     return u;
 }}
 '''
-    main = '''/* Harness SIL (gerado): le linhas "theta omega i r hand rearm collab", imprime "u sup tid" em hexfloat. */
+    main = '''/* Harness SIL (gerado): le linhas "theta omega i r hand rearm collab", imprime "u sup tid" (u com 9 digitos significativos). */
 #include <stdio.h>
 #include "aurora_joint_ctrl.h"
 int main(void)

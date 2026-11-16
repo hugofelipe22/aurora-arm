@@ -13,7 +13,8 @@ Pacote de evidências model-based: planta → controlador → verificação form
 | `src/sil.py` | equivalência modelo × código (compila o C se houver compilador; senão usa espelho float32) |
 | `src/memorial.py` | itens (a)–(e) do memorial, figuras, `results/memorial.json` |
 | `tests/test_aurora.py` | 16 testes (desempenho, segurança, baseados em modelo, mutação, equivalência) |
-| `docs/` | matriz de rastreabilidade e relatório técnico |
+| `docs/` | matriz de rastreabilidade, relatório técnico (HTML e PDF) |
+| `results/` | `memorial.json`, `tests.json`, `coverage_report.md` (cobertura de estados/transições) |
 
 Reproduzir: `python run_all.py` (requer apenas numpy e matplotlib). Para fechar o SIL com o C real:
 `gcc -O0 -ffp-contract=off -o sil generated/sil_main.c generated/aurora_joint_ctrl.c` (ou apenas instalar gcc e rodar `python src/sil.py`).

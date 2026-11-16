@@ -147,6 +147,14 @@ def test_mbt():
            not fails and cov_t == all_t and len(cov_s) == 4 and forced,
            dict(estados=f'{len(cov_s)}/4', transicoes=f'{len(cov_t)}/{len(all_t)}', caminhos=len(paths),
                 T8_forcado_por_timeout=forced, falhas=fails))
+    rows = ['# Relatorio de cobertura do supervisor (gerado por tests/test_aurora.py)', '',
+            f'Estados cobertos: {len(cov_s)}/4 ({", ".join(S.NAMES[s] for s in sorted(cov_s))})',
+            f'Transicoes cobertas: {len(cov_t)}/{len(all_t)}', '',
+            '| Transicao | Origem | Guarda | Destino | Sequencia (hand,rearm,resume_done) | Coberta |', '|---|---|---|---|---|---|']
+    for tid, (o, g, d) in sorted(S.TRANSITIONS.items(), key=lambda kv: int(kv[0][1:])):
+        rows.append(f'| {tid} | {S.NAMES[o]} | {g} | {S.NAMES[d]} | {paths.get(tid)} | {"sim" if tid in cov_t else "NAO"} |')
+    rows += ['', f'T8 por timeout (RESUME_MAX={S.RESUME_MAX}): {"coberto" if forced else "NAO coberto"}']
+    open(os.path.join(os.path.dirname(__file__), '..', 'results', 'coverage_report.md'), 'w', encoding='utf8').write(chr(10).join(rows) + chr(10))
     # equivalencia dos caminhos float32 x float64
     mism = [t for t, p in paths.items() if run_path(p)[0] != run_path(p, dtype=np.float32)[0]]
     record('TC-MBT-002', 'REQ-SAFE-AA-001..003', 'mesmos caminhos no espelho float32 do codigo C: mesmas transicoes', not mism, dict(divergencias=mism))
