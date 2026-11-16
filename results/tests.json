@@ -1,0 +1,332 @@
+{
+ "tests": [
+  {
+   "id": "TC-CTRL-001",
+   "req": "REQ-CTRL-AA-001",
+   "desc": "erro de regime nulo (degrau 2 e 10 rad, com T_carga=0,25 N.m)",
+   "passed": true,
+   "detail": {
+    "2.0": 1.156186257844638e-12,
+    "10.0": 6.464073720735541e-10
+   }
+  },
+  {
+   "id": "TC-CTRL-002",
+   "req": "REQ-CTRL-AA-002",
+   "desc": "sobressinal <= 8%",
+   "passed": true,
+   "detail": {
+    "2.0": 0.0,
+    "10.0": 6.08
+   }
+  },
+  {
+   "id": "TC-CTRL-003",
+   "req": "REQ-CTRL-AA-003",
+   "desc": "acomodacao (2%) <= 300 ms",
+   "passed": true,
+   "detail": {
+    "2.0": 104.0,
+    "10.0": 208.0
+   }
+  },
+  {
+   "id": "TC-CTRL-004",
+   "req": "REQ-CTRL-AA-004",
+   "desc": "|V|<=48 V e |i|<=8 A (corrente continua intra-amostra, 5 degraus)",
+   "passed": true,
+   "detail": {
+    "Vmax": 29.298463968516153,
+    "Imax": 7.590913300381757
+   }
+  },
+  {
+   "id": "TC-CTRL-005",
+   "req": "REQ-CTRL-AA-002",
+   "desc": "anti-windup: sem AW estoura 8%, com AW nao",
+   "passed": true,
+   "detail": {
+    "com_AW": 0.0,
+    "sem_AW": 1026.4699999249804
+   }
+  },
+  {
+   "id": "TC-SAFE-001",
+   "req": "REQ-SAFE-AA-001",
+   "desc": "torque zero <= 100 ms, malha fechada, 252 combinacoes (atraso x fase x jitter)",
+   "passed": true,
+   "detail": {
+    "pior_caso_ms": 25.5,
+    "config": {
+     "delay_ms": 20,
+     "phase_ms": 0.5,
+     "skips": 2
+    }
+   }
+  },
+  {
+   "id": "TC-SAFE-001-MC",
+   "req": "REQ-SAFE-AA-001",
+   "desc": "model checking exaustivo P1 (supervisor+sensor+jitter J=1)",
+   "passed": true,
+   "detail": {
+    "estados": 99845,
+    "pior_caso_ms": 25
+   }
+  },
+  {
+   "id": "TC-SAFE-002",
+   "req": "REQ-SAFE-AA-002",
+   "desc": "sem rearme nao retoma (0,7..1,5 s) e torque permanece zero",
+   "passed": true,
+   "detail": {
+    "estado_final": "STOP_WAIT_REARM"
+   }
+  },
+  {
+   "id": "TC-SAFE-002-MC",
+   "req": "REQ-SAFE-AA-002",
+   "desc": "model checking P2: RESUME so via T5 (rearme consumido, sem mao)",
+   "passed": true,
+   "detail": {}
+  },
+  {
+   "id": "TC-SAFE-003",
+   "req": "REQ-SAFE-AA-003",
+   "desc": "apos rearme o braco retorna a trajetoria original (theta->10 rad) e volta a RUN",
+   "passed": true,
+   "detail": {
+    "theta_final": 9.999999999999982,
+    "estado": "RUN"
+   }
+  },
+  {
+   "id": "TC-SAFE-003-MC",
+   "req": "REQ-SAFE-AA-003",
+   "desc": "model checking P3 (CTL AF): rearme & mao ausente => RUN inevitavel",
+   "passed": true,
+   "detail": {
+    "antecedent_states": 4,
+    "subgraph_states": 209,
+    "live_ok": true,
+    "violations": 0
+   }
+  },
+  {
+   "id": "TC-SAFE-004",
+   "req": "REQ-SAFE-AA-004",
+   "desc": "v_efetuador <= 250 mm/s na zona colaborativa (4 cenarios)",
+   "passed": true,
+   "detail": {
+    "pico_w": 69.03881061161964,
+    "v_mm_s": 241.6
+   }
+  },
+  {
+   "id": "TC-MBT-001",
+   "req": "REQ-SAFE-AA-001..003",
+   "desc": "testes gerados por percurso do grafo: cobertura de estados e transicoes",
+   "passed": true,
+   "detail": {
+    "estados": "4/4",
+    "transicoes": "10/10",
+    "caminhos": 10,
+    "T8_forcado_por_timeout": true,
+    "falhas": []
+   }
+  },
+  {
+   "id": "TC-MBT-002",
+   "req": "REQ-SAFE-AA-001..003",
+   "desc": "mesmos caminhos no espelho float32 do codigo C: mesmas transicoes",
+   "passed": true,
+   "detail": {
+    "divergencias": []
+   }
+  },
+  {
+   "id": "TC-MBT-003",
+   "req": "REQ-SAFE-AA-001",
+   "desc": "mutante (hand ignorado em RESUME) e detectado pela suite gerada",
+   "passed": true,
+   "detail": {
+    "testes_que_matam_o_mutante": [
+     "T7"
+    ]
+   }
+  },
+  {
+   "id": "TC-EQV-001",
+   "req": "REQ-CTRL-AA-004",
+   "desc": "equivalencia modelo float64 x codigo float32 (SIL, 1000 amostras)",
+   "passed": true,
+   "detail": {
+    "n_samples": 1000,
+    "max_abs_err_V": 0.0003409892720698249,
+    "max_abs_u": 15.56115246893513,
+    "eps_float32": 1.1920928955078125e-07,
+    "err_over_eps_umax": 183.81834772902602,
+    "err_rel": 2.1912854639175655e-05,
+    "c_executed": false,
+    "supervisor_state_mismatch": 0
+   }
+  }
+ ],
+ "paths": {
+  "T0": [
+   [
+    0,
+    0,
+    0
+   ]
+  ],
+  "T1": [
+   [
+    1,
+    0,
+    0
+   ]
+  ],
+  "T2": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ]
+  ],
+  "T3": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    1,
+    0,
+    0
+   ]
+  ],
+  "T6": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ]
+  ],
+  "T5": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ],
+  "T4": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    1,
+    0,
+    0
+   ]
+  ],
+  "T9": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ]
+  ],
+  "T8": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ],
+   [
+    0,
+    0,
+    1
+   ]
+  ],
+  "T7": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    1,
+    0
+   ],
+   [
+    1,
+    0,
+    0
+   ]
+  ]
+ }
+}

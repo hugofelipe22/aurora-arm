@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>Operação Linha Viva — AuroraArm</title>
+<style>
+@page { size: A4; margin: 18mm 16mm; }
+body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.2pt; line-height: 1.42; color: #1b1b1b; }
+h1 { font-size: 20pt; margin: 0 0 4px; color: #12385f; } h2 { font-size: 14pt; color: #12385f; border-bottom: 2px solid #12385f; padding-bottom: 2px; margin-top: 22px; page-break-after: avoid; }
+h3 { font-size: 11.5pt; color: #1f5fa8; margin-bottom: 4px; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 9pt; page-break-inside: avoid; }
+th, td { border: 1px solid #b9c3cf; padding: 3px 6px; vertical-align: top; } th { background: #e8eef5; text-align: left; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #f1f3f5; padding: 0 2px; } pre { background: #f1f3f5; padding: 6px 8px; font-size: 8.6pt; overflow-x: auto; white-space: pre-wrap; }
+img { max-width: 100%; display: block; margin: 6px auto; } figcaption { text-align: center; font-size: 8.6pt; color: #444; } figure { margin: 8px 0; page-break-inside: avoid; }
+.eq { text-align: center; font-family: "Cambria Math", "Times New Roman", serif; font-size: 11pt; margin: 6px 0; }
+.box { border-left: 4px solid #c0392b; background: #fdf1ef; padding: 6px 10px; margin: 10px 0; } .ok { border-left-color: #2e7d32; background: #eef7ee; }
+.sub { color: #555; } .pb { page-break-before: always; }
+</style></head><body>
+
+<h1>Operação Linha Viva: o desafio do braço colaborativo AuroraArm</h1>
+<div class="sub">Pacote de evidências model-based para a junta do cotovelo — modelo, controle, verificação formal, código gerado e rastreabilidade.<br>
+Disciplina: Model Based Design for Cyber-Physical Systems · Repositório: <b>[inserir link do repositório Git]</b> · Vídeo: <b>[inserir link do vídeo]</b></div>
+
+<h2>1. Resumo executivo</h2>
+<p>Para a junta do cotovelo (motor CC 48 V, redução 100:1) foram entregues: (i) o modelo em espaço de estados derivado das leis de Kirchhoff e Newton (<code>src/plant.py</code>); (ii) um controlador de realimentação de estados com ação integral, limitador preditivo de tensão/corrente e anti-windup (<code>src/design.py</code>, <code>src/controller.py</code>); (iii) um supervisor de segurança formalizado como autômato e verificado exaustivamente por um model checker de estados explícitos temporizado (<code>src/supervisor.py</code>, <code>src/modelcheck.py</code>); e (iv) código C em ponto flutuante simples gerado automaticamente (<code>generated/aurora_joint_ctrl.c</code>), com suíte de 16 testes, equivalência numérica e matriz de rastreabilidade (<code>docs/traceability.md</code>).</p>
+<table>
+<tr><th>Número-chave</th><th>Valor</th><th>Origem</th></tr>
+<tr><td>Constantes de tempo (elétrica / mecânica)</td><td>1,55 ms / 44,2 ms (separação 28,5×)</td><td>Memorial (a)</td></tr>
+<tr><td>Tensão e corrente exigidas em 450 rad/s, 0,25 N·m</td><td>41,24 V (folga 6,76 V = 14,1%) e 3,74 A (folga 53%)</td><td>Memorial (b)</td></tr>
+<tr><td>Amostras por constante de tempo mecânica</td><td>22,1 (T<sub>s</sub> = 2 ms adequado)</td><td>Memorial (c)</td></tr>
+<tr><td>Desempenho (degrau 2 rad / 10 rad no eixo do motor)</td><td>sobressinal 0% / 6,1%; acomodação 104 ms / 208 ms; erro nulo</td><td>TC-CTRL-001..003</td></tr>
+<tr><td>Prazo de torque zero (REQ-SAFE-AA-001)</td><td>pior caso 25 ms (checker, J=1) e 25,5 ms (malha fechada) &lt; 100 ms; tolera até 39 ciclos perdidos</td><td>Memorial (d)</td></tr>
+<tr><td>Velocidade do efetuador na zona colaborativa</td><td>pico 241,6 mm/s &lt; 250 mm/s</td><td>TC-SAFE-004</td></tr>
+<tr><td>Equivalência modelo (float64) × código (float32)</td><td>erro máx. 3,4·10<sup>-4</sup> V ≈ 2,6 ε·Σ|termos|</td><td>Memorial (e)</td></tr>
+</table>
+<div class="box"><b>Limites desta entrega (declarados desde já).</b> O ambiente de desenvolvimento não tinha compilador C, e a instalação de pacotes foi bloqueada. Portanto, o teste de equivalência foi executado contra um <b>espelho float32</b> bit-a-bit da lógica gerada (constantes lidas do próprio <code>.c</code>), e <b>a compilação/execução do C real ainda não foi realizada</b> — o harness (<code>generated/sil_main.c</code>, <code>src/sil.py</code>) está pronto e fecha o SIL assim que houver <code>gcc</code>/<code>clang</code>. A verificação formal usa um model checker próprio em Python, e não UPPAAL/NuSMV. Ver seção 7.</div>
+
+<h2>2. Parte teórica</h2>
+<h3>2.1 Modelagem física e escolha dos estados</h3>
+<p>A armadura obedece à lei das malhas de Kirchhoff e o eixo à segunda lei de Newton para rotação:</p>
+<div class="eq">L·di/dt = V − R·i − K<sub>e</sub>·ω &nbsp;&nbsp;&nbsp;&nbsp; J·dω/dt = K<sub>t</sub>·i − b·ω − T<sub>c</sub> &nbsp;&nbsp;&nbsp;&nbsp; dθ/dt = ω</div>
+<p>Os estados são <b>x = [i, ω]</b> (e <b>θ</b> adicionado no laço de posição) porque cada um é uma variável de energia armazenada: <i>i</i> na indutância (½Li²), ω na inércia (½Jω²), θ é a integral que fecha o laço de posição. A tensão V é a entrada, T<sub>c</sub> é perturbação e as saídas são ω (memorial) ou θ (controle). O acoplamento eletromecânico (K<sub>e</sub>ω no circuito, K<sub>t</sub>i no eixo) é o que torna os dois estados interdependentes e faz a constante de tempo mecânica efetiva (45,7 ms) ser muito menor que J/b = 2,8 s. Código: <code>continuous2()</code> e <code>continuous3()</code> em <code>src/plant.py</code>.</p>
+<p><b>Identificação e validação.</b> Os parâmetros foram identificados em bancada (dados do enunciado); não há dados brutos de ensaio nesta entrega, logo a "validação" é de consistência: (i) K<sub>t</sub> = K<sub>e</sub> em unidades SI, como esperado para ímã permanente; (ii) τ<sub>m</sub> calculada por dois caminhos (autovalor 44,2 ms e fórmula JR/(Rb+K<sub>t</sub>K<sub>e</sub>) = 45,7 ms, diferença de 3% devida ao acoplamento de L); (iii) o torque estático do payload (2 kg × 9,81 × 0,35 m ÷ 100 = 0,069 N·m) é 3,6× menor que os 0,25 N·m do enunciado — adotei os 0,25 N·m como valor <i>conservador</i> (inclui efeitos dinâmicos/atrito não modelados). Com dados reais, a validação adequada seria comparar o degrau de tensão medido com a simulação e reportar o NRMSE.</p>
+
+<h3>2.2 Requisitos de desempenho × requisitos de segurança</h3>
+<p>Os REQ-CTRL são requisitos <b>quantitativos sobre trajetórias contínuas</b> (sobressinal, acomodação, erro de regime), verificados por simulação em cenários representativos: a evidência é finita e depende da escolha dos cenários. Os REQ-SAFE são <b>propriedades lógico-temporais sobre todas as execuções</b> de um sistema reativo discreto (supervisor + sensor + escalonador); testes não bastam porque o defeito do quase-acidente era uma condição de borda rara — por isso usam-se model checking (exaustivo) e testes derivados do modelo.</p>
+<table><tr><th>Requisito</th><th>Classe</th><th>Justificativa</th><th>Formalização</th></tr>
+<tr><td>REQ-SAFE-AA-001 (torque zero ≤ 100 ms)</td><td><b>Segurança</b> (com prazo)</td><td>"Algo ruim nunca acontece": nunca ocorre mão &lt;500 mm por &gt;100 ms com torque ativo. É refutável por um prefixo finito (o instante em que o prazo vence), logo é segurança; o prazo a transforma em uma resposta limitada, não em vivacidade.</td><td>AG ¬(c &gt; 100 ∧ torque), c = relógio de presença da mão</td></tr>
+<tr><td>REQ-SAFE-AA-002 (sem retomada automática)</td><td><b>Segurança</b></td><td>Nunca se sai de STOP para movimento sem rearme explícito. Violação = um único passo.</td><td>AG (STOP ∧ X(RESUME) → rearme ∧ ¬mão)</td></tr>
+<tr><td>REQ-SAFE-AA-003 (retomar a trajetória)</td><td><b>Vivacidade</b></td><td>"Algo bom eventualmente acontece": após mão removida e rearme, o braço <i>eventualmente</i> retoma. Nenhum prefixo finito a refuta (sempre pode-se esperar mais); exige premissa de justiça (a mão não retorna). Fortalecida com limite RESUME_MAX = 50 ciclos, o que a torna vivacidade limitada.</td><td>AG ((STOP_WAIT ∧ rearme ∧ ¬mão) → AF RUN) sob "mão não volta"</td></tr>
+<tr><td>REQ-SAFE-AA-004 (v ≤ 250 mm/s)</td><td><b>Segurança</b> (invariante)</td><td>Violação num único instante. Valor crítico: 450 rad/s no motor = 1,575 m/s no efetuador (0,35 m), 6,3× acima do limite; logo a zona colaborativa exige limitar ω a 0,95·0,25/0,35·100 = 67,9 rad/s.</td><td>AG v(ω) ≤ 250 mm/s em zona colaborativa</td></tr></table>
+
+<h3>2.3 Fundamentação das escolhas</h3>
+<p><b>Controle (Unidades 1–2).</b> Optou-se por realimentação de estados com integrador projetada por LQR discreto sobre o modelo ZOH exato (T<sub>s</sub> = 2 ms), em vez de PID: com <i>i</i>, ω e θ medidos, o LQR posiciona todos os polos de forma coordenada, e o integrador de θ garante erro nulo sob torque de carga constante (REQ-CTRL-001; Siciliano et al., 2010, cap. 8). Como T<sub>s</sub> &gt; τ<sub>e</sub>, um projeto em tempo contínuo discretizado ignoraria a dinâmica elétrica — por isso projeta-se direto em tempo discreto. Pesos: Q = diag(0; 10<sup>-3</sup>; 2000; 5·10<sup>6</sup>), R = 1, escolhidos por varredura (36 combinações) até 0% de sobressinal e menor acomodação. Polos de malha fechada em |z| = 0,275; 0,863 (duplo); 0,906.</p>
+<p><b>Saturação e windup.</b> O limite de 8 A é muito menor que a corrente de rotor bloqueado (48/0,8 = 60 A), logo a saturação é o regime normal em qualquer manobra rápida. Dois mecanismos: (1) <i>limitador preditivo</i> que calcula o intervalo de <i>u</i> que mantém |V| ≤ 48 V e |i[k+1]| ≤ 7,5 A (margem de 0,5 A para ondulação intra-amostra) e |ω[k+1]| ≤ ω<sub>colab</sub> na zona colaborativa; (2) <i>anti-windup por back-calculation</i>, z ← z + T<sub>s</sub>e + (T<sub>s</sub>/T<sub>t</sub>)(u<sub>raw</sub> − u<sub>sat</sub>)/K<sub>z</sub>, T<sub>t</sub> = 10 ms. Sem ele, o degrau de 2 rad tem 1026% de sobressinal (Figura 2).</p>
+<p><b>Verificação (Unidade 3).</b> O supervisor é um autômato de 4 estados (Figura 3) e o sistema verificado é o produto temporizado ambiente × sensor × escalonador × supervisor × atuação (Baier e Katoen, 2008, caps. 4–6 e 9, para a semântica temporal): relógios inteiros com tick de 1 ms, atraso do sensor não determinístico em [0, 20] ms, até J ciclos perdidos e Z = 2 ms para a corrente zerar (medido em simulação). Responde-se a P1 por busca em largura (alcançabilidade do estado ruim), a P2 por checagem de invariante de transição e a P3 por ponto fixo de AF em CTL sobre o grafo restrito à premissa de justiça. A norma IEC 61508 motiva a abordagem: métodos formais são recomendados para SIL 3/4, e a ISO/TS 15066 define as grandezas (velocidade, separação).</p>
+<p><b>Geração de código (Unidade 4).</b> <code>src/codegen.py</code> emite C a partir do mesmo modelo: ganhos e matrizes saem de <code>design()</code>, a máquina de estados reproduz <code>supervisor.TRANSITIONS</code> e o cabeçalho traz o bloco de rastreabilidade e o hash SHA-256 dos parâmetros. Escolhas: <code>float</code> (FPU de precisão simples do Cortex-M4), sem alocação dinâmica, sem recursão, sem libm, laços de tamanho fixo (compatível com análise estática tipo MISRA C). Orçamento: ≈60 operações de ponto flutuante por ciclo; <i>estimativa</i> de 300–600 ciclos em M4F a 100+ MHz ≈ 3–6 µs ≪ 200 µs e poucas centenas de bytes de código ≪ 256 KB — <b>estimativa, não medição</b>.</p>
+
+<h2 class="pb">3. Parte prática (resumo dos resultados)</h2>
+<h3>3.1 Controlador</h3>
+<figure><img src="../figs/degraus.png"><figcaption>Figura 1 — Resposta ao degrau (2 e 10 rad no eixo do motor, T<sub>c</sub> = 0,25 N·m). Tensão e corrente respeitam 48 V e 8 A (<code>tests/test_aurora.py::test_perf</code>).</figcaption></figure>
+<table><tr><th>Teste</th><th>Requisito</th><th>Critério</th><th>Resultado</th></tr>
+<tr><td>TC-CTRL-001</td><td>REQ-CTRL-AA-001</td><td>erro de regime nulo</td><td>1,2·10<sup>-12</sup> rad (2 rad); 6,5·10<sup>-10</sup> rad (10 rad) — PASS</td></tr>
+<tr><td>TC-CTRL-002</td><td>REQ-CTRL-AA-002</td><td>sobressinal ≤ 8%</td><td>0% (2 rad); 6,08% (10 rad) — PASS</td></tr>
+<tr><td>TC-CTRL-003</td><td>REQ-CTRL-AA-003</td><td>acomodação (2%) ≤ 300 ms</td><td>104 ms; 208 ms — PASS</td></tr>
+<tr><td>TC-CTRL-004</td><td>REQ-CTRL-AA-004</td><td>|V| ≤ 48 V, |i| ≤ 8 A</td><td>V<sub>máx</sub> = 29,3 V; i<sub>máx</sub> = 7,59 A (5 degraus de 0,5 a 50 rad, corrente intra-amostra com 20 sub-passos) — PASS</td></tr>
+<tr><td>TC-CTRL-005</td><td>REQ-CTRL-AA-002</td><td>anti-windup</td><td>com AW 0%; sem AW 1026% — PASS</td></tr></table>
+<p><b>Envelope declarado.</b> Os requisitos são garantidos para degraus de até 10 rad no eixo do motor (≈ 5,7° na junta). Para 50 rad o sobressinal sobe a ≈ 22% e a acomodação passa de 300 ms (limitada pelos 8 A); movimentos maiores devem passar pelo gerador de trajetória (rampa de referência), que o código implementa.</p>
+<figure><img src="../figs/antiwindup.png"><figcaption>Figura 2 — Efeito do anti-windup (back-calculation).</figcaption></figure>
+
+<h3>3.2 Supervisor de segurança e verificação formal</h3>
+<figure><img src="../figs/automato.png"><figcaption>Figura 3 — Autômato do supervisor (<code>src/supervisor.py</code>). Torque zero nos estados STOP_*; a transição T7 foi a corrigida.</figcaption></figure>
+<p><b>Contraexemplo obtido e corrigido.</b> A versão preliminar (<code>step(..., buggy=True)</code>) reproduz o quase-acidente: em RESUME o sinal <code>hand</code> era ignorado (condição de borda movimento/parada). O model checker refutou P1 com um contraexemplo de 105 ticks (125.365 estados explorados): a mão aparece, some, o operador rearma, a mão reaparece <i>enquanto o estado é RESUME</i>, o supervisor a ignora e o torque permanece ativo com a mão presente por 101 ms. Após a correção (T7: <code>hand</code> tem prioridade em todos os estados) P1 passa. Essa mesma suíte, executada sobre o mutante, falha na transição T7 (TC-MBT-003), demonstrando poder de detecção.</p>
+<table><tr><th>Propriedade</th><th>J (ciclos perdidos)</th><th>Estados / transições</th><th>Resultado</th></tr>
+<tr><td>P1 (REQ-SAFE-001)</td><td>0</td><td>46.329 / 264.808</td><td>satisfeita, pior caso 23 ms</td></tr>
+<tr><td>P1</td><td>1</td><td>99.845 / 745.453</td><td>satisfeita, pior caso 25 ms</td></tr>
+<tr><td>P1</td><td>2</td><td>153.929 / 1.257.205</td><td>satisfeita, pior caso 27 ms</td></tr>
+<tr><td>P1</td><td>3</td><td>208.565 / 1.796.842</td><td>satisfeita, pior caso 29 ms</td></tr>
+<tr><td>P2 (REQ-SAFE-002)</td><td>0–3</td><td>idem</td><td>satisfeita (RESUME só via T5)</td></tr>
+<tr><td>P3 (REQ-SAFE-003, AF)</td><td>1</td><td>209 (subgrafo)</td><td>satisfeita: 4 estados antecedentes, 0 violações</td></tr></table>
+<figure><img src="../figs/prazo_vs_atraso.png"><figcaption>Figura 4 — Tempo até torque zero × atraso do sensor, em malha fechada com 1 ciclo perdido: reta de inclinação 1 e ≤ 25,5 ms.</figcaption></figure>
+
+<h3>3.3 Testes baseados em modelo</h3>
+<p><code>generate_paths()</code> em <code>tests/test_aurora.py</code> percorre por BFS o grafo do supervisor sobre o alfabeto (hand, rearm, resume_done) e gera o menor prefixo que exercita cada transição. <b>Cobertura: 4/4 estados e 10/10 transições</b> (T0–T9), mais um caso direto de saída de RESUME por timeout (49 repetições de T9 e depois T8). Os mesmos caminhos rodam no modelo float64 e no espelho float32 com as mesmas transições (TC-MBT-002). Testes de malha fechada: TC-SAFE-001 varre 21 atrasos × 4 fases × 3 padrões de ciclos perdidos (252 combinações) a partir do ponto crítico: pior caso 25,5 ms (atraso 20 ms, fase 0,5 ms, 2 ciclos perdidos).</p>
+<figure><img src="../figs/supervisor_cenario.png"><figcaption>Figura 5 — Cenário completo: degrau, intrusão da mão (visão atrasada em 20 ms), parada, rearme, retomada e retorno a θ = 10 rad.</figcaption></figure>
+<figure><img src="../figs/velocidade_colab.png"><figcaption>Figura 6 — REQ-SAFE-AA-004: velocidade do efetuador na zona colaborativa (pico 241,6 mm/s). Só a rampa de referência produzia 430 mm/s (pico de 123 rad/s); o limitador preditivo de velocidade foi adicionado por esse achado.</figcaption></figure>
+
+<h3>3.4 Matriz de rastreabilidade (requisito → modelo → código → teste)</h3>
+<table><tr><th>Requisito</th><th>Modelo</th><th>Código gerado</th><th>Teste(s)</th></tr>
+<tr><td>REQ-CTRL-AA-001</td><td><code>src/plant.py</code>, <code>src/design.py</code> (integrador z)</td><td><code>generated/aurora_joint_ctrl.c</code>: <code>aa_joint_step()</code>, <code>c-&gt;z</code></td><td>TC-CTRL-001</td></tr>
+<tr><td>REQ-CTRL-AA-002</td><td><code>src/design.py</code> (LQR, anti-windup)</td><td><code>AA_K_*</code>, <code>AA_KAW</code></td><td>TC-CTRL-002, 005</td></tr>
+<tr><td>REQ-CTRL-AA-003</td><td><code>src/design.py</code></td><td><code>AA_K_*</code></td><td>TC-CTRL-003</td></tr>
+<tr><td>REQ-CTRL-AA-004</td><td><code>design.limits()</code>, <code>controller.py</code></td><td>limitador <code>lo/hi</code>, <code>AA_VMAX</code>, <code>AA_IMAX_EFF</code></td><td>TC-CTRL-004, TC-EQV-001</td></tr>
+<tr><td>REQ-SAFE-AA-001</td><td><code>supervisor.py</code> T1,T4,T7; <code>modelcheck.py</code> P1</td><td>transições para <code>AA_STOP_HAND</code>; corrente-zero</td><td>TC-SAFE-001, 001-MC, TC-MBT-001/003</td></tr>
+<tr><td>REQ-SAFE-AA-002</td><td><code>supervisor.py</code> T2,T3,T5,T6; P2</td><td><code>case AA_STOP_WAIT_REARM</code></td><td>TC-SAFE-002, 002-MC, TC-MBT-001</td></tr>
+<tr><td>REQ-SAFE-AA-003</td><td><code>supervisor.py</code> T5,T8,T9; P3</td><td><code>AA_RESUME</code>, <code>r_cmd</code></td><td>TC-SAFE-003, 003-MC, TC-MBT-001</td></tr>
+<tr><td>REQ-SAFE-AA-004</td><td><code>params.py</code> W_COLLAB; limitador de ω</td><td><code>AA_W_COLLAB</code></td><td>TC-SAFE-004</td></tr></table>
+<p>Resultado da suíte: <b>16 de 16 testes aprovados</b> (<code>results/tests.json</code>). Versão completa e gerada automaticamente em <code>docs/traceability.md</code>.</p>
+
+<h2>4. Casos reais e referências</h2>
+<div class="box"><b>Pendente (ação do(a) estudante).</b> A fonte 7 do enunciado exige um relato técnico público e identificável de integração de robô colaborativo real (por exemplo, Universal Robots, ABB ou KUKA), com referência ABNT completa. Não inseri uma citação que não pude verificar. Sugestão: escolher um estudo de caso publicado e relacionar o que ele relata sobre zonas de velocidade/separação com os resultados da seção 3.3 (rampa/limitação a 250 mm/s) e com a parada de segurança.</div>
+<ol>
+<li>INTERNATIONAL ORGANIZATION FOR STANDARDIZATION. <i>ISO/TS 15066: Robots and robotic devices — Collaborative robots</i>. Geneva: ISO, 2016.</li>
+<li>SICILIANO, B.; SCIAVICCO, L.; VILLANI, L.; ORIOLO, G. <i>Robotics: Modelling, Planning and Control</i>. London: Springer-Verlag, 2010.</li>
+<li>INTERNATIONAL ELECTROTECHNICAL COMMISSION. <i>IEC 61508: Functional safety of electrical/electronic/programmable electronic safety-related systems</i>. Parts 1-7. Geneva: IEC, 2010.</li>
+<li>BAIER, C.; KATOEN, J.-P. <i>Principles of Model Checking</i>. Cambridge: MIT Press, 2008.</li>
+<li>MODELICA ASSOCIATION. <i>Functional Mock-up Interface Specification</i>, version 3.0, 2022 (não utilizada: a co-simulação foi feita em Python nativo, <code>src/sim.py</code>).</li>
+<li>Material das 16 aulas da disciplina (Unidades 1 a 4).</li>
+</ol>
+
+<h2>5. Vídeo e repositório</h2>
+<p>Repositório Git: <b>[inserir link]</b> · Vídeo (≤ 5 min, YouTube não listado): <b>[inserir link]</b>. Roteiro sugerido no arquivo <code>docs/roteiro_video.md</code>.</p>
+
+<h2 class="pb">6. Anexo — Memorial de cálculo</h2>
+<p class="sub">Todos os números abaixo são reproduzidos por <code>python src/memorial.py</code> (saída em <code>results/memorial.json</code>).</p>
+
+<h3>(a) Modelo em espaço de estados e constantes de tempo</h3>
+<p><b>Fórmulas</b> (x = [i, ω]ᵀ): A = [[−R/L, −K<sub>e</sub>/L],[K<sub>t</sub>/J, −b/J]], B = [1/L, 0]ᵀ, C = [0 1], D = 0.<br>
+<b>Dados:</b> R = 0,8 Ω; L = 1,2·10<sup>-3</sup> H; K<sub>t</sub> = K<sub>e</sub> = 0,085; J = 4,2·10<sup>-4</sup>; b = 1,5·10<sup>-4</sup>.<br>
+<b>Substituição:</b> −R/L = −0,8/0,0012 = −666,67 s⁻¹; −K<sub>e</sub>/L = −0,085/0,0012 = −70,83; K<sub>t</sub>/J = 0,085/4,2·10<sup>-4</sup> = 202,38; −b/J = −1,5·10<sup>-4</sup>/4,2·10<sup>-4</sup> = −0,357; 1/L = 833,3.</p>
+<div class="eq">A = [[−666,67, −70,83],[202,38, −0,357]] &nbsp; B = [833,3; 0] &nbsp; C = [0 1]</div>
+<p><b>Autovalores:</b> det(λI−A) = λ² + 667,02λ + 14573,2 = 0 (traço = −667,02; det = 666,67·0,357 + 70,83·202,38 = 238,1 + 14335,1). Raízes: λ₁ = −644,41 s⁻¹, λ₂ = −22,62 s⁻¹ (ambos reais e negativos → estável, sobreamortecido).<br>
+<b>Constantes de tempo:</b> τ<sub>e</sub> = 1/644,41 = <b>1,55 ms</b>; τ<sub>m</sub> = 1/22,62 = <b>44,2 ms</b>. Razão τ<sub>m</sub>/τ<sub>e</sub> = <b>28,5</b> → sistema rígido (<i>stiff</i>): a corrente atinge o regime ≈ 28× mais rápido que a velocidade; o modelo desacoplado dá L/R = 1,5 ms e J/b = 2,8 s, mas a f.c.e.m. realimenta o eixo e reduz τ<sub>m</sub> a JR/(Rb+K<sub>t</sub>K<sub>e</sub>) = 3,36·10<sup>-4</sup>/7,345·10<sup>-3</sup> = 45,7 ms (3% de diferença do autovalor exato, por causa de L).<br>
+<b>Controlabilidade:</b> 𝒞 = [B AB] = [[1/L, −R/L²],[0, K<sub>t</sub>/(JL)]]; det 𝒞 = (1/L)·K<sub>t</sub>/(JL) = 833,3 · 1,6865·10⁵ = 1,405·10⁸ ≠ 0 → posto 2: <b>controlável</b>.<br>
+<b>Observabilidade (C = [0 1]):</b> 𝒪 = [C; CA] = [[0, 1],[202,38, −0,357]]; det 𝒪 = −202,38 ≠ 0 → posto 2: <b>observável</b>. (O modelo estendido [i, ω, θ] é controlável e observável por θ, posto 3 e 3.)<br>
+<b>Premissa:</b> parâmetros constantes e linearidade (sem zona morta, histerese ou saturação magnética).</p>
+
+<h3>(b) Ponto de operação crítico</h3>
+<p><b>Fórmulas:</b> i<sub>ss</sub> = (bω<sub>ss</sub> + T<sub>carga</sub>)/K<sub>t</sub>; V<sub>ss</sub> = R·i<sub>ss</sub> + K<sub>e</sub>ω<sub>ss</sub>.<br>
+<b>Substituição:</b> i<sub>ss</sub> = (1,5·10<sup>-4</sup>·450 + 0,25)/0,085 = (0,0675 + 0,25)/0,085 = <b>3,735 A</b>.<br>
+V<sub>ss</sub> = 0,8·3,735 + 0,085·450 = 2,988 + 38,25 = <b>41,24 V</b>.<br>
+<b>Folga:</b> 48 − 41,24 = <b>6,76 V</b> (14,1% do barramento); em corrente, 8 − 3,735 = 4,26 A (53%). Velocidade máxima sustentável sob a mesma carga: ω<sub>max</sub> = (48 − R·T<sub>c</sub>/K<sub>t</sub>)/(K<sub>e</sub> + Rb/K<sub>t</sub>) = (48 − 2,353)/0,08641 = 528 rad/s (17% acima de 450).</p>
+<p><b>Implicação.</b> 92% da tensão disponível (38,25 V) é f.c.e.m.; a folga de 6,76 V é o que sobra para acelerar e rejeitar perturbações — suficiente em regime, mas, na transição (partida em ω = 0, onde i<sub>stall</sub> = 60 A ≫ 8 A), o atuador satura sempre em manobras rápidas. Logo, um controlador de ação integral <b>necessita de anti-windup</b>: sem ele o integrador acumula durante a saturação e gera 1026% de sobressinal (TC-CTRL-005). Também justifica o limitador de corrente preditivo e fixa que não se deve operar o ponto crítico com margem de tensão menor que ≈ 14%.</p>
+
+<h3>(c) Período de amostragem</h3>
+<p><b>Fórmula:</b> N<sub>τ</sub> = τ<sub>m</sub>/T<sub>s</sub>. <b>Substituição:</b> 44,2 ms/2 ms = <b>22,1 amostras por τ<sub>m</sub></b> (regra de projeto digital: 10–20 amostras por constante de tempo dominante da malha). Polos de malha fechada discretos |z| = 0,863 → τ<sub>cl</sub> = −T<sub>s</sub>/ln(0,863) = 13,6 ms = 6,8 amostras, e 0,906 → 20,3 ms = 10,2 amostras. Frequência de amostragem 500 Hz.<br>
+<b>Conclusão:</b> T<sub>s</sub> = 2 ms é <b>adequado</b> para o laço de posição (nem insuficiente nem desnecessariamente conservador: ≥ 6,8 amostras por constante da malha fechada e ≈ 52 amostras por tempo de acomodação de 104 ms). Ressalva: τ<sub>e</sub>/T<sub>s</sub> = 0,78 (&lt; 1 amostra por τ<sub>e</sub>) — a dinâmica elétrica <b>não é resolvida</b> pela amostragem; por isso o projeto é feito em tempo discreto com ZOH exato (e a corrente é controlada de forma preditiva, de modo semelhante a deadbeat, polo em 0,275), e não seria adequado fechar uma malha de corrente separada a 500 Hz.</p>
+
+<h3>(d) Verificação do prazo de 100 ms</h3>
+<p><b>Orçamento analítico (pior caso):</b> t<sub>pior</sub> = d<sub>sensor</sub> + T<sub>s</sub> (espera pelo próximo ciclo) + J·T<sub>s</sub> (ciclos perdidos) + Z = 20 + 2 + 2·1 + 2 = <b>26 ms</b>, com Z = 2 ms o tempo medido para |i| ≤ 0,16 A (2% de 8 A) com comando de corrente-zero (i = 7,5 A, 450 rad/s). Folga: 74 ms.<br>
+<b>Verificação exaustiva (autômato temporizado discreto):</b> o checker explora todas as combinações de atraso ∈ {0..20} ms (inclusive trocas de atraso), fase do ciclo, instante de intrusão/saída da mão, ciclos perdidos (J ≤ 3), rearme e duração de RESUME. Resultado: pior caso 23, 25, 27 e 29 ms para J = 0, 1, 2, 3, ou seja, 25 ms para J = 1 (condizente com o orçamento de 26 ms — o 1 ms de diferença é a granularidade do tick), <b>nenhuma combinação viola 100 ms</b>.<br>
+<b>Validação cruzada em malha fechada com a planta:</b> 252 combinações (21 atrasos × 4 fases × 3 padrões de ciclos perdidos): pior caso <b>25,5 ms</b> (atraso 20 ms, 2 ciclos perdidos). Varredura estendida de ciclos perdidos consecutivos (atraso 20 ms, pior fase): 0→21,5 ms; 5→31,5; 20→61,5; 30→81,5; 38→97,5; <b>39→99,5 ms; 40→101,5 ms (viola)</b>. O sistema tolera até <b>39 ciclos consecutivos perdidos</b>, bem além do 1 ciclo previsto; a combinação violadora (≥ 40) está fora das premissas do enunciado.<br>
+<b>Premissa crítica:</b> a contagem de 100 ms inicia na entrada física da mão (conservador: inclui o atraso do sensor). O scanner é visto como binário (mão a menos/mais de 500 mm).</p>
+
+<h3>(e) Equivalência modelo × código</h3>
+<p><b>Fórmula:</b> e<sub>max</sub> = max<sub>k</sub> |u<sub>código</sub>[k] − u<sub>ref</sub>[k]|, comparado a ε<sub>float32</sub> = 2<sup>-23</sup> = 1,19·10<sup>-7</sup>.<br>
+<b>Sequência de teste:</b> 1000 amostras (2 s) gravadas da malha fechada float64: degrau 10 rad → intrusão da mão com atraso de 20 ms → parada → rearme → retomada → trecho colaborativo → degrau reverso (todas as transições de estado exercitadas).<br>
+<b>Resultado:</b> e<sub>max</sub> = 3,41·10<sup>-4</sup> V; |u|<sub>max</sub> = 15,56 V; e<sub>max</sub>/(ε·|u|<sub>max</sub>) = 184; erro relativo 2,2·10<sup>-5</sup>. Divergência de estados do supervisor: 0 de 1000.<br>
+<b>Interpretação:</b> 184 ε em relação à saída parece alto, mas a lei de controle é uma soma de termos que se cancelam: Σ|K<sub>j</sub>x<sub>j</sub>|<sub>max</sub> = 1088 V (principalmente K<sub>z</sub>·z), e o erro de arredondamento do float32 escala com essa soma, não com o resultado. Em relação a ela, e<sub>max</sub>/(ε·Σ|termos|) = <b>2,6</b>, ou seja, poucos ulps — compatível com a aritmética de simples precisão (erro ≈ ε·Σ|termos|·O(1)) e <b>sem evidência de defeito na geração</b> (um defeito, como ganho trocado, teria erro de várias ordens de grandeza maior; o mutante do supervisor foi detectado com transições divergentes). Critério adotado: e<sub>max</sub> &lt; 10<sup>-3</sup> V e e<sub>max</sub>/(ε·|u|<sub>max</sub>) &lt; 10³.<br>
+<b>Ressalva importante:</b> a comparação foi feita com o espelho float32 (<code>sil.mirror_f32</code>), cujas constantes são lidas de volta do <code>.c</code> gerado e cuja ordem de operações é igual à do código C. A execução do C compilado ainda não ocorreu (ver seção 7).</p>
+<figure><img src="../figs/equivalencia.png"><figcaption>Figura 7 — Erro |u<sub>float32</sub> − u<sub>float64</sub>| ao longo da sequência de teste.</figcaption></figure>
+
+<h3>(f) Distância de parada estimada (informativo)</h3>
+<p>Torque zero não imobiliza o eixo. Na zona colaborativa (ω ≤ 69 rad/s): desaceleração por carga e atrito ≈ (0,25 + 1,5·10<sup>-4</sup>·34,5)/4,2·10<sup>-4</sup> = 607 rad/s² → Δθ = 69²/(2·607) = 3,9 rad no motor = 0,039 rad na junta = <b>13,8 mm</b> na ponta; mais o deslocamento durante a resposta de 25,5 ms (6,2 mm): ≈ <b>20 mm</b> ≪ 500 mm de detecção, <b>supondo que a carga se oponha ao movimento</b> (se a gravidade ajudar, a distância cresce e um freio é necessário). Já a 450 rad/s (fora da zona colaborativa) a ponta percorreria ≈ 0,5 m em roda livre, por isso o freio mecânico e a classe de parada são decisões de projeto da célula.</p>
+
+<h2>7. Honestidade técnica — o que o pacote sustenta e o que não</h2>
+<p><b>Sustenta, perante a auditoria da Aurora Robótica:</b> modelo derivado e consistente; controlador que cumpre os quatro REQ-CTRL nos cenários declarados; supervisor corrigido, com contraexemplo documentado e propriedades P1–P3 verificadas exaustivamente no modelo; código C e testes gerados do mesmo modelo, com rastreabilidade bidirecional; números reprodutíveis por <code>run_all.py</code>.</p>
+<p><b>Não sustenta (lacunas explícitas):</b></p>
+<ul>
+<li><b>SIL com o C real não executado:</b> sem compilador no ambiente. Falta compilar com <code>-ffp-contract=off</code> e comparar com o espelho (esperado: diferença de ≈ 0 ulp) — <code>python src/sil.py</code>. Também não foi medido o tempo de execução nem o tamanho do binário no Cortex-M4 (HIL necessário; os 200 µs/256 KB são estimativas).</li>
+<li><b>Model checker próprio:</b> é uma implementação própria de ~200 linhas, não qualificada; o modelo temporizado é discreto (tick 1 ms), não um autômato de relógios densos. Recomenda-se repetir P1–P3 em UPPAAL/NuSMV como verificação independente.</li>
+<li><b>Fidelidade do modelo:</b> planta linear com parâmetros nominais; sem incerteza paramétrica, atrito de Coulomb, folga na transmissão harmônica, flexibilidade, quantização de encoder/ADC nem ruído; medições de <i>i</i>, ω, θ supostas perfeitas e sem atraso. O freio de retenção (P-BRK) é premissa, não requisito do enunciado.</li>
+<li><b>Escopo:</b> uma junta de seis; a ISO/TS 15066 exige análise de força/pressão de contato (limites por região do corpo), não apenas velocidade e prazo — não tratada.</li>
+<li><b>Certificação:</b> para ISO 26262 (ou IEC 61508/ISO 13849 no setor de robótica), seria exigido qualificação de ferramentas (gerador de código, checker, compilador, classe TCL/T3), independência da verificação e de quem projeta, análise de modos de falha (FMEDA, cobertura de diagnóstico), cobertura estrutural MC/DC do código, rastreabilidade em ferramenta de requisitos e processo de gestão de configuração. Este pacote é <i>evidência técnica de apoio</i>, não uma certificação.</li>
+</ul>
+</body></html>
